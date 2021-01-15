@@ -1,0 +1,37 @@
+# This workflow will install Python dependencies, run tests and lint with a variety of Python versions
+# For more information see: https://help.github.com/actions/language-and-framework-guides/using-python-with-github-actions
+
+name: Merge Release
+
+on:
+  pull_request:
+    branches: [ release/* ]
+    types:
+      [closed]
+
+jobs:
+  UpdateVersion:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+
+    - name: Update Version Number
+      run: |
+        echo `git branch --show-current`
+
+  PasUpdate:
+    if: github.event.pull_request.merged != true
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+
+    - name: Get Version Number
+      run: |
+        echo `git branch --show-current`

@@ -1,0 +1,127 @@
+# This workflow will install Python dependencies, run tests and lint with a variety of Python versions
+# For more information see: https://help.github.com/actions/language-and-framework-guides/using-python-with-github-actions
+
+name: Start Feature
+
+on:
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+    inputs:
+      feature:
+        description: 'Name of the Jira feature (an only contain lower-case letters, numbers, and hyphens). Example: studio-1234'
+        required: true
+      prefix:
+        description: 'Prefix for creation of the branch. The branch will be created with the name {prefix}/{feature}'
+        required: true
+        default: 'feature'
+      origin_branch:
+        description: 'Origin branch name, can be develop or master'
+        required: true
+        default: 'develop'
+      aws_region:
+        description: 'AWS Region'
+        required: true
+        default: 'eu-west-2'
+      aws_env:
+        description: 'AWS Environment'
+        required: true
+        default: 'nprd'
+      aws_account:
+        description: 'AWS Account'
+        required: true
+        default: 'rhubencap'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      PYTHON_VERSION: 3.6
+
+    steps:
+
+    # Input Parameters
+    - run: |
+        echo "feature: ${{github.event.inputs.feature}}"
+        echo "prefix: ${{github.event.inputs.prefix}}"
+        echo "origin_branch: ${{github.event.inputs.origin_branch}}"
+        echo "aws_region: ${{github.event.inputs.aws_region}}"
+        echo "aws_env: ${{github.event.inputs.aws_env}}"
+        echo "aws_account: ${{github.event.inputs.aws_account}}"
+
+    # Checkout repository under $GITHUB_WORKSPACE
+    - uses: actions/checkout@v2
+      with:
+        ref: ${{github.event.inputs.origin_branch}}
+
+    # Configure AWS credentials
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{secrets.AWS_ACCESS_KEY_ID}}
+        aws-secret-access-key: ${{secrets.AWS_SECRET_ACCESS_KEY}}
+        aws-region: ${{github.event.inputs.aws_region}}
+
+    # Create configuration file from the template
+    - name: Update template
+      run: |
+        cd ${{github.workspace}}/rhub_build/config_files/${{github.event.inputs.aws_env}}
+        sed 's/{environ_id}/${{github.event.inputs.feature}}/g' template.py > ${{github.event.inputs.feature}}.py
+        sed -i 's/{region}/${{github.event.inputs.aws_region}}/g' ${{github.event.inputs.feature}}.py
+
+        cat ${{github.event.inputs.feature}}.py
+
+    # Download last artifacts rs-lambda.zip and rs-angular.zip
+    - name: Download artifact rs-lambda
+      uses: dawidd6/action-download-artifact@v2
+      with:
+        github_token: ${{secrets.GITHUB_TOKEN}}
+        workflow: pythonpackage.yml
+        workflow_conclusion: success
+        name: rs-lambda
+        path: ${{github.workspace}}/zip_packages
+
+    - name: Download artifact rs-angular
+      uses: dawidd6/action-download-artifact@v2
+      with:
+        github_token: ${{secrets.GITHUB_TOKEN}}
+        workflow: pythonpackage.yml
+        workflow_conclusion: success
+        name: rs-angular
+        path: ${{github.workspace}}/rhub_ng/dist
+
+    # Install Python
+    - name: Set up Python $PYTHON_VERSION
+      uses: actions/setup-python@v1
+      with:
+        python-version: ${{env.PYTHON_VERSION}}
+
+    # Prepare environment
+    - name: Prepare environment
+      run: |
+        cd ${{github.workspace}}/rhub_build
+        python -m pip install --upgrade pip
+        pip install pipenv
+        pipenv install
+        pipenv run python setup.py install
+
+    # Deploy new environment
+    - name: Deploy Reporting Studio
+      env:
+        build_file: ${{github.workspace}}/rhub_build/config_files/${{github.event.inputs.aws_env}}/common_build_config_${{github.event.inputs.aws_account}}_${{github.event.inputs.aws_region}}.py
+        env_file: ${{github.workspace}}/rhub_build/config_files/${{github.event.inputs.aws_env}}/${{github.event.inputs.feature}}.py
+      run: |
+        cd ${{github.workspace}}/rhub_build
+        pipenv run rs create --build_file ${build_file} --env_file ${env_file} --c all
+        pipenv run rs create_user --build_file ${build_file} --env_file ${env_file} --u user1 --p Azerty1! --e "${GITHUB_ACTOR}@moodys.com" --r DPA
+        pipenv run rs create_user --build_file ${build_file} --env_file ${env_file} --u user2 --p Azerty1! --e "${GITHUB_ACTOR}@moodys.com" --r DPA
+        pipenv run rs create_user --build_file ${build_file} --env_file ${env_file} --u user3 --p Azerty1! --e "${GITHUB_ACTOR}@moodys.com" --r DPA
+
+    # Create and Push new branch
+    - name: Create feature branch with the name {prefix}/{feature}
+      run: |
+        git config --global user.email "${GITHUB_ACTOR}@moodys.com"
+        git config --global user.name "${GITHUB_ACTOR}"
+        git checkout -b ${{github.event.inputs.prefix}}/${{github.event.inputs.feature}}
+        git add .
+        git commit -m "Create feature branch ${{github.event.inputs.prefix}}/${{github.event.inputs.feature}}"
+        git push origin ${{github.event.inputs.prefix}}/${{github.event.inputs.feature}}
