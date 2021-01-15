@@ -21,6 +21,8 @@ jobs:
 
     - name: Update Version Number
       run: |
+        git config --global user.email "${GITHUB_ACTOR}@moodys.com"
+        git config --global user.name "${GITHUB_ACTOR}"
         inc=`git describe --tags  --abbrev=0 | grep -Eo '[0-9]+$'`
         version_number="`git branch --show-current | grep -Eo '[0-9\.]+$'`.RC`echo $((inc+1))`"
         # update version file
