@@ -1,8 +1,12 @@
-workflow_dispatch:
-  inputs:
-    release_name:
-      description: 'Name of the Release year_week# example : 2019.50'
-      required: true
+name: test dispatch
+
+on:
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+    inputs:
+      release_name:
+        description: 'Name of the Release year_week# example : 2019.50'
+        required: true
 
 jobs:
   create_release:
