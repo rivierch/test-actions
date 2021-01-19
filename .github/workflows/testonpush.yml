@@ -1,4 +1,8 @@
-on: [push]
+workflow_dispatch:
+  inputs:
+    release_name:
+      description: 'Name of the Release year_week# example : 2019.50'
+      required: true
 
 jobs:
   create_release:
@@ -11,11 +15,8 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # This token is provided by Actions, you do not need to create your own token
       with:
-        tag_name: ${{ github.ref }}
-        release_name: Release ${{ github.ref }}
-        body: |
-          Changes in this Release
-          - First Change
-          - Second Change
+        tag_name: ${{ github.event.inputs.release_name }}
+        release_name: Release ${{ github.event.inputs.release_name }}
+        body_path: ${{github.workspace}}/RELEASE.md
         draft: false
         prerelease: false
